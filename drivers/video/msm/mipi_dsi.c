@@ -115,11 +115,6 @@ static int mipi_dsi_off(struct platform_device *pdev)
 
 	ret = panel_next_off(pdev);
 
-#if defined(CONFIG_FB_MSM_MIPI_S6E8AA0_HD720_PANEL) || \
-	defined(CONFIG_FB_MSM_MIPI_S6E8AA0_WXGA_Q1_PANEL)
-
-	MIPI_OUTP(MIPI_DSI_BASE + 0xA8, 0x00000000); // for LCD-on when wakeup
-#endif
 
 	spin_lock_bh(&dsi_clk_lock);
 
@@ -605,26 +600,6 @@ static int mipi_dsi_probe(struct platform_device *pdev)
 		goto mipi_dsi_probe_err;
 
 	pdev_list[pdev_list_cnt++] = pdev;
-
-#if 1 // Debug Information
-	printk(KERN_ERR "mipi_dsi_probe: H.Period=%d, width=%d, BPorch=%d, xrex=%d,FPorch=%d\n",
-			h_period,
-			(mfd->panel_info.lcdc.h_pulse_width),
-			(mfd->panel_info.lcdc.h_back_porch),
-			(mfd->panel_info.xres),
-			(mfd->panel_info.lcdc.h_front_porch)	);
-	printk(KERN_ERR "mipi_dsi_probe: V.Period=%d, width=%d, BPorch=%d, xrex=%d,FPorch=%d\n",
-			v_period,
-			(mfd->panel_info.lcdc.v_pulse_width),
-			(mfd->panel_info.lcdc.v_back_porch),
-			(mfd->panel_info.yres),
-			(mfd->panel_info.lcdc.v_front_porch)	);
-	printk(KERN_ERR "mipi_dsi_probe: mipi->frame_rate = %d\n", mipi->frame_rate );	
-	printk(KERN_ERR "mipi_dsi_probe: Lanes = %d\n", lanes );	
-	printk(KERN_ERR "mipi_dsi_probe: pll_divider_config.clk_rate = %u\n", pll_divider_config.clk_rate );
-	printk(KERN_ERR "mipi_dsi_probe: dsi_pclk_rate = %u\n", dsi_pclk_rate );
-	printk(KERN_ERR "mipi_dsi_probe: mipi->dsi_pclk_rate = %u\n", mipi->dsi_pclk_rate );
-#endif 
 
 return 0;
 

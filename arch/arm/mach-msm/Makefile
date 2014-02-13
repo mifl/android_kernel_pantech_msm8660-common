@@ -1,25 +1,25 @@
 CFLAGS_scm.o :=$(call as-instr,.arch_extension sec,-DREQUIRES_SEC=1)
 
-# replace board-msm8x60.o and gpiomux-8x60.o with own model's ones
+#
+# Replace with own model's:
+# acpuclock-8x60.o, board-msm8x60.o, board-msm8x60-camera.o,
+# clock-8x60.o, devices-msm8x60.o and gpiomux-8x60.o.
+#
 
-BOARD_OBJ_NAME:=board-msm8x60.o # default name
-GPIOMUX_OBJ_NAME:=gpiomux-8x60.o # default name
-
-ifdef CONFIG_TARGET_SERIES_CELOX
-BOARD_OBJ_NAME:=board-msm8x60_celox.o
-GPIOMUX_OBJ_NAME:=gpiomux-8x60_celox.o
-endif
-ifdef CONFIG_TARGET_SERIES_DALI
-BOARD_OBJ_NAME:=board-msm8x60_dali.o
-GPIOMUX_OBJ_NAME:=gpiomux-8x60_dali.o
-endif
-ifdef CONFIG_TARGET_SERIES_Q1
-BOARD_OBJ_NAME:=board-msm8x60_q1.o
-GPIOMUX_OBJ_NAME:=gpiomux-8x60_q1.o
-endif
-ifdef CONFIG_TARGET_SERIES_P5LTE
-BOARD_OBJ_NAME:=board-msm8x60_p5lte.o
-GPIOMUX_OBJ_NAME:=gpiomux-8x60_p5lte.o
+ifdef CONFIG_MACH_MSM8X60_PRESTO
+    ACPUCLOCK_OBJ_NAME:=acpuclock-presto.o
+    BOARD_OBJ_NAME:=board-presto.o
+    BOARD_CAMERA_OBJ_NAME:=board-camera-presto.o
+    CLOCK_OBJ_NAME:=clock-presto.o
+    DEVICES_OBJ_NAME:=devices-presto.o
+    GPIOMUX_OBJ_NAME:=gpiomux-presto.o
+else
+    ACPUCLOCK_OBJ_NAME:=acpuclock-8x60.o
+    BOARD_OBJ_NAME:=board-msm8x60.o
+    BOARD_CAMERA_OBJ_NAME:=board-msm8x60-camera.o
+    CLOCK_OBJ_NAME:=clock-8x60.o
+    DEVICES_OBJ_NAME:=devices-msm8x60.o
+    GPIOMUX_OBJ_NAME:=gpiomux-8x60.o
 endif
 
 obj-y += io.o dma.o memory.o
@@ -185,7 +185,7 @@ obj-$(CONFIG_MACH_TROUT) += board-trout-mmc.o board-trout-wifi.o
 obj-$(CONFIG_ARCH_QSD8X50) += devices-qsd8x50.o clock-pcom-lookup.o
 obj-$(CONFIG_MACH_QSD8X50_SURF) += board-qsd8x50.o
 obj-$(CONFIG_MACH_QSD8X50_FFA) += board-qsd8x50.o
-obj-$(CONFIG_ARCH_MSM8X60) += devices-msm8x60.o clock-local.o clock-8x60.o acpuclock-8x60.o
+obj-$(CONFIG_ARCH_MSM8X60) += $(DEVICES_OBJ_NAME) clock-local.o $(CLOCK_OBJ_NAME) $(ACPUCLOCK_OBJ_NAME)
 obj-$(CONFIG_ARCH_MSM8X60) += clock-rpm.o
 obj-$(CONFIG_ARCH_MSM8X60) += saw-regulator.o
 obj-$(CONFIG_ARCH_MSM8X60) += footswitch-8x60.o
@@ -203,8 +203,6 @@ ifdef CONFIG_MSM_SUBSYSTEM_RESTART
 	obj-y += ramdump.o
 	obj-$(CONFIG_ARCH_MSM8X60) += modem-8660.o lpass-8660.o
 endif
-
-obj-$(CONFIG_USB_SWITCH_FSA9480)   += sec_switch.o
 obj-$(CONFIG_MSM_SYSMON_COMM) += sysmon.o
 obj-$(CONFIG_MSM_MODEM_8960) += modem-8960.o
 obj-$(CONFIG_MSM_LPASS_8960) += lpass-8960.o
@@ -217,7 +215,7 @@ ifdef CONFIG_CPU_IDLE
 endif
 
 ifdef CONFIG_MSM_CAMERA_V4L2
-	obj-$(CONFIG_ARCH_MSM8X60) += board-msm8x60-camera.o
+	obj-$(CONFIG_ARCH_MSM8X60) += $(BOARD_CAMERA_OBJ_NAME)
 endif
 obj-$(CONFIG_ARCH_FSM9XXX) += devices-fsm9xxx.o
 obj-$(CONFIG_ARCH_FSM9XXX) += clock-fsm9xxx.o clock-local.o acpuclock-fsm9xxx.o
@@ -233,6 +231,7 @@ obj-$(CONFIG_MACH_MSM8X60_FLUID) += $(BOARD_OBJ_NAME)
 obj-$(CONFIG_MACH_MSM8X60_DRAGON) += $(BOARD_OBJ_NAME)
 obj-$(CONFIG_MACH_TYPE_MSM8X60_FUSION) += $(BOARD_OBJ_NAME) mdm.o
 obj-$(CONFIG_MACH_MSM8X60_FUSN_FFA) += $(BOARD_OBJ_NAME) mdm.o
+obj-$(CONFIG_MACH_MSM8X60_PRESTO) += $(BOARD_OBJ_NAME) mdm.o
 obj-$(CONFIG_TROUT_H2W) += board-trout-h2w.o
 obj-$(CONFIG_TROUT_BATTCHG) += htc_battery.o
 obj-$(CONFIG_TROUT_PWRSINK) += htc_pwrsink.o
@@ -277,8 +276,6 @@ obj-$(CONFIG_MACH_SAPPHIRE) += board-sapphire.o board-sapphire-gpio.o
 obj-$(CONFIG_MACH_SAPPHIRE) += board-sapphire-keypad.o board-sapphire-panel.o
 obj-$(CONFIG_MACH_SAPPHIRE) += board-sapphire-mmc.o board-sapphire-wifi.o
 obj-$(CONFIG_MACH_SAPPHIRE) += board-sapphire-rfkill.o msm_vibrator.o
-
-obj-$(CONFIG_BROADCOM_WIFI) +=broadcom_wlan.o
 
 CFLAGS_msm_vibrator.o += -Idrivers/staging/android
 
@@ -347,12 +344,5 @@ obj-$(CONFIG_MSM_RTB) += msm_rtb.o
 obj-$(CONFIG_MSM_CACHE_ERP) += cache_erp.o
 obj-$(CONFIG_MSM_CACHE_DUMP) += msm_cache_dump.o
 obj-$(CONFIG_MSM_CPU_PWRCTL) +=  msm_cpu_pwrctl.o
-obj-$(CONFIG_SEC_DEBUG)		+= sec_debug.o sec_getlog.o sec_gaf.o
-
-obj-$(CONFIG_SEC_LOG_LAST_KMSG) += sec_last_log.o
-
-ifdef CONFIG_BT_BCM4330
-obj-$(CONFIG_BT_BCM4330) += board-bluetooth-bcm4330.o
-endif
 
 obj-$(CONFIG_ARCH_RANDOM) += early_random.o

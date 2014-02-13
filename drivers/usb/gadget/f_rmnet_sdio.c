@@ -34,7 +34,6 @@
 #include <linux/usb/cdc.h>
 #include <linux/usb/composite.h>
 #include <linux/usb/ch9.h>
-#include <linux/usb/android_composite.h>
 #include <linux/termios.h>
 #include <linux/debugfs.h>
 
@@ -145,13 +144,8 @@ static struct usb_interface_descriptor rmnet_sdio_interface_desc = {
 	/* .bInterfaceNumber = DYNAMIC */
 	.bNumEndpoints =        3,
 	.bInterfaceClass =      USB_CLASS_VENDOR_SPEC,
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	.bInterfaceSubClass = 0xE0,
-	.bInterfaceProtocol = 0x00,
-#else	
 	.bInterfaceSubClass =   USB_CLASS_VENDOR_SPEC,
 	.bInterfaceProtocol =   USB_CLASS_VENDOR_SPEC,
-#endif
 	/* .iInterface = DYNAMIC */
 };
 

@@ -391,10 +391,6 @@ uint32 mdp4_overlay_panel_list(void)
 	return ctrl->panel_mode;
 }
 
-#ifdef HDMI_VIDEO_QUANTIZATION_ISSUE
-extern void video_quantization_setting(void);
-#endif
-
 int mdp4_overlay_borderfill_supported(void)
 {
 	return (mdp_rev >= MDP_REV_42);
@@ -442,13 +438,9 @@ void mdp4_overlay_dmae_cfg(struct msm_fb_data_type *mfd, int atv)
 #ifdef CONFIG_FB_MSM_EXT_INTERFACE_COMMON
 		mdp_vid_quant_set();
 #endif
-#ifdef HDMI_VIDEO_QUANTIZATION_ISSUE
-		video_quantization_setting();
-#else
 		MDP_OUTP(MDP_BASE + 0xb0070, 0xff0000);
 		MDP_OUTP(MDP_BASE + 0xb0074, 0xff0000);
 		MDP_OUTP(MDP_BASE + 0xb0078, 0xff0000);
-#endif
 	}
 
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
@@ -2734,15 +2726,6 @@ static int mdp4_calc_req_mdp_clk(struct msm_fb_data_type *mfd,
 		mfd->panel_info.type == MIPI_CMD_PANEL) ?
 		mfd->panel_info.mipi.dsi_pclk_rate :
 		mfd->panel_info.clk_rate;
-
-#if defined (CONFIG_KOR_MODEL_SHV_E110S)
-	/* change minimum pclk to boost mdp clk
-	    when playing 1080p video clip in WVGA lcd density */
-	if (pclk < 34910000) {
-		pclk = 34910000;
-	}
-#endif
-
 	if (!pclk) {
 		pr_err("%s panel pixel clk is zero!\n", __func__);
 		return mdp_max_clk;
@@ -3521,28 +3504,6 @@ int mdp4_overlay_get(struct fb_info *info, struct mdp_overlay *req)
 	return 0;
 }
 
-#if defined(CONFIG_TDMB) || defined(CONFIG_TDMB_MODULE)
-extern int DMB_Qseed_change;
-extern int SharpValue;
-static int which_pipe_for_DMB = 0;
-
-void sharpness_tuneT(int num, int pipe_num)		
-{
-	char *vg_base;
-	if(pipe_num == 0) 
-		vg_base = MDP_BASE + MDP4_VIDEO_BASE; 
-	else if(pipe_num == 1) 
-		vg_base = MDP_BASE + MDP4_VIDEO_BASE + 0x10000;
-	else
-		vg_base = MDP_BASE + MDP4_VIDEO_BASE; 
-
-	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE); 
-	outpdw(vg_base + 0x8200, mdp4_ss_table_value((int8_t)num, 0)); 
-	outpdw(vg_base + 0x8204, mdp4_ss_table_value((int8_t)num, 1)); 
-	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE); 
-}
-#endif
-
 int mdp4_overlay_set(struct fb_info *info, struct mdp_overlay *req)
 {
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
@@ -3583,40 +3544,7 @@ int mdp4_overlay_set(struct fb_info *info, struct mdp_overlay *req)
 		pr_err("%s: mdp4_overlay_req2pipe, ret=%d\n", __func__, ret);
 		return ret;
 	}
-	
-#if defined(CONFIG_TDMB) || defined(CONFIG_TDMB_MODULE)
-	if (mixer == MDP4_MIXER0 && DMB_Qseed_change == 1) {
-		if(pipe->pipe_num == OVERLAY_PIPE_VG1)
-		{
-			printk("### vg 1\n");
-			which_pipe_for_DMB = 1;
-		}
-		else if(pipe->pipe_num == OVERLAY_PIPE_VG2)
-		{
-			
-			printk("### vg 2\n");
-			which_pipe_for_DMB = 2;
-		}
 
-		if(which_pipe_for_DMB)
-		{
-			printk("### call mdp4_vg_qseed_init_DMB\n");
-			mdp4_vg_qseed_init_DMB(which_pipe_for_DMB-1);
-			sharpness_tuneT(SharpValue, (which_pipe_for_DMB-1)); 
-			DMB_Qseed_change = 0;		
-
-		}
-	}
-
-	if(DMB_Qseed_change == 2 && which_pipe_for_DMB > 0)
-	{
-		
-		printk("### call mdp4_vg_qseed_init_VideoPlay\n");
-		mdp4_vg_qseed_init_VideoPlay(which_pipe_for_DMB-1);
-		DMB_Qseed_change = 0;
-		which_pipe_for_DMB = 0;
-	}
-#endif	
 	/* return id back to user */
 	req->id = pipe->pipe_ndx;	/* pipe_ndx start from 1 */
 	pipe->req_data = *req;		/* keep original req */
@@ -4026,10 +3954,11 @@ int mdp4_overlay_play(struct fb_info *info, struct msmfb_overlay_data *req)
 			/* cndx = 0 */
 			mdp4_mddi_pipe_queue(0, pipe);
 		}
+#ifdef CONFIG_FB_MSM_DTV
 	} else if (pipe->mixer_num == MDP4_MIXER1) {
 		if (ctrl->panel_mode & MDP4_PANEL_DTV)
 			mdp4_dtv_pipe_queue(0, pipe);/* cndx = 0 */
-
+#endif
 	} else if (pipe->mixer_num == MDP4_MIXER2) {
 		ctrl->mixer2_played++;
 		if (ctrl->panel_mode & MDP4_PANEL_WRITEBACK)
@@ -4075,9 +4004,11 @@ int mdp4_overlay_commit(struct fb_info *info)
 	case LCDC_PANEL:
 		mdp4_lcdc_pipe_commit(0, 1);
 		break;
+#ifdef CONFIG_FB_MSM_DTV
 	case DTV_PANEL:
 		mdp4_dtv_pipe_commit(0, 1);
 		break;
+#endif
 	case WRITEBACK_PANEL:
 		mdp4_wfd_pipe_commit(mfd, 0, 1);
 		break;

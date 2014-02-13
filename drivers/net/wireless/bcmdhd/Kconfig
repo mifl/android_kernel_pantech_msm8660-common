@@ -21,12 +21,14 @@ config BCM43241
 
 config BCMDHD_FW_PATH
 	depends on WLAN
+	depends on (BCM4330 || BCM4334 || BCM43241)
 	string "Firmware path"
 	---help---
 	  Path to the firmware file.
 
 config BCMDHD_NVRAM_PATH
 	depends on WLAN
+	depends on (BCM4330 || BCM4334 || BCM43241)
 	string "NVRAM path"
 	---help---
 	  Path to the calibration file.

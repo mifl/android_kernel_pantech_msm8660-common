@@ -873,10 +873,6 @@ static void msmfb_early_resume(struct early_suspend *h)
 static int unset_bl_level, bl_updated;
 static int bl_level_old;
 
-#ifdef CONFIG_BATTERY_SEC
-extern unsigned int is_lpcharging_state(void);
-#endif
-
 static int mdp_bl_scale_config(struct msm_fb_data_type *mfd,
 						struct mdp_bl_scale_data *data)
 {
@@ -1417,13 +1413,6 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
 	var->xres = panel_info->xres;
 	var->yres = panel_info->yres;
 	var->xres_virtual = panel_info->xres;
-#ifdef CONFIG_FB_MSM_MIPI_S6E8AA0_HD720_PANEL
-	var->height = 103,	/* height of picture in mm */
-	var->width = 58,	/* width of picture in mm */
-#elif defined(CONFIG_FB_MSM_MIPI_S6D6AA0_WXGA_PANEL) || defined(CONFIG_FB_MSM_MIPI_S6E8AA0_WXGA_Q1_PANEL)
-	var->height = 114,	/* height of picture in mm */
-	var->width = 71,	/* width of picture in mm */
-#endif
 	var->yres_virtual = panel_info->yres * mfd->fb_page +
 		((PAGE_SIZE - remainder)/fix->line_length) * mfd->fb_page;
 	var->bits_per_pixel = bpp * 8;	/* FrameBuffer color depth */
@@ -1594,17 +1583,9 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
 	     mfd->index, fbi->var.xres, fbi->var.yres, fbi->fix.smem_len);
 
 #ifdef CONFIG_FB_MSM_LOGO
-	if(mfd->index == 0)
-	{
-#ifdef CONFIG_BATTERY_SEC
-		if (is_lpcharging_state() == 1) {
-			MSM_FB_INFO("[lpm-mode] skip init logo!\n");
-		} else
-#endif /* CONFIG_BATTERY_SEC */
-			/* Flip buffer */
-			if (!load_565rle_image(INIT_IMAGE_FILE, bf_supported))
-				;
-	}
+	/* Flip buffer */
+	if (!load_565rle_image(INIT_IMAGE_FILE, bf_supported))
+		;
 #endif
 	ret = 0;
 
@@ -4311,15 +4292,6 @@ struct platform_device *msm_fb_add_device(struct platform_device *pdev)
 		fbi_list_index--;
 		return NULL;
 	}
-
-#ifdef CONFIG_SEC_DEBUG
-	if (fbi_list_index == 1) {
-		sec_getlog_supply_fbinfo((void *)(fbi->fix.smem_start),
-					 fbi->var.xres,
-					 fbi->var.yres,
-					 fbi->var.bits_per_pixel, 2);
-	}
-#endif
 	return this_dev;
 }
 EXPORT_SYMBOL(msm_fb_add_device);

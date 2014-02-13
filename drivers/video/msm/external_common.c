@@ -27,14 +27,12 @@
 #include "mhl_api.h"
 
 #include "mdp.h"
-#define ERR_CODE -1
+
 struct external_common_state_type *external_common_state;
 EXPORT_SYMBOL(external_common_state);
 DEFINE_MUTEX(external_common_state_hpd_mutex);
 EXPORT_SYMBOL(external_common_state_hpd_mutex);
-#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2)
-int get_best_display_Mode(void);
-#endif
+
 
 static int atoi(const char *name)
 {
@@ -226,12 +224,7 @@ static ssize_t hdmi_common_rda_edid_modes(struct device *dev,
 		ret += snprintf(buf+ret, PAGE_SIZE-ret, "%d",
 			external_common_state->video_resolution+1);
 
-#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2)
-	DEV_DBG("%s: '%s' : %s\n", __func__, buf,
-			msm_hdmi_mode_2string(get_best_display_Mode()));
-#else
 	DEV_DBG("%s: '%s'\n", __func__, buf);
-#endif
 	ret += snprintf(buf+ret, PAGE_SIZE-ret, "\n");
 	return ret;
 }
@@ -386,16 +379,6 @@ static ssize_t hdmi_common_rda_hdcp(struct device *dev,
 		external_common_state->hdcp_active);
 	DEV_DBG("%s: '%d'\n", __func__,
 		external_common_state->hdcp_active);
-	return ret;
-}
-
-static ssize_t hdmi_common_dvi_enable(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	ssize_t ret = snprintf(buf, PAGE_SIZE, "%d\n",
-		!external_common_state->hdmi_sink);
-	DEV_DBG("%s: '%d'\n", __func__,
-		!external_common_state->hdmi_sink);
 	return ret;
 }
 
@@ -820,7 +803,6 @@ static DEVICE_ATTR(edid_3d_modes, S_IRUGO,
 	hdmi_common_rda_edid_3d_modes, NULL);
 static DEVICE_ATTR(3d_present, S_IRUGO, hdmi_common_rda_3d_present, NULL);
 static DEVICE_ATTR(hdcp_present, S_IRUGO, hdmi_common_rda_hdcp_present, NULL);
-static DEVICE_ATTR(isdvi, S_IRUGO, hdmi_common_dvi_enable, NULL);
 #endif
 #ifdef CONFIG_FB_MSM_HDMI_3D
 static DEVICE_ATTR(format_3d, S_IRUGO | S_IWUSR | S_IWGRP,
@@ -848,7 +830,6 @@ static struct attribute *external_common_fs_attrs[] = {
 	&dev_attr_edid_3d_modes.attr,
 	&dev_attr_3d_present.attr,
 	&dev_attr_hdcp_present.attr,
-	&dev_attr_isdvi.attr,
 #endif
 #ifdef CONFIG_FB_MSM_HDMI_3D
 	&dev_attr_format_3d.attr,
@@ -1366,14 +1347,6 @@ static void hdmi_edid_detail_desc(const uint8 *data_buf, uint32 *disp_mode)
 		DEV_INFO("%s: *no mode* found\n", __func__);
 }
 
-
-
-bool mhl_is_connected(void)
-{
-	return false;
-}
-
-
 static void add_supported_video_format(
 	struct hdmi_disp_mode_list_type *disp_mode_list,
 	uint32 video_format)
@@ -1841,9 +1814,6 @@ int hdmi_common_read_edid(void)
 	external_common_state->it_scan_info = 0;
 	external_common_state->ce_scan_info = 0;
 	external_common_state->preferred_video_format = 0;
-
-	/* Default 2ch-audio */
-	external_common_state->audio_speaker_data = 2;
 	external_common_state->present_3d = 0;
 	memset(&external_common_state->disp_mode_list, 0,
 		sizeof(external_common_state->disp_mode_list));
@@ -1896,11 +1866,6 @@ int hdmi_common_read_edid(void)
 				external_common_state->hdmi_sink = TRUE ;
 			else
 				external_common_state->hdmi_sink = FALSE ;
-#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2)
-			DEV_DBG("HDMI DVI mode(1): %s\n",
-				external_common_state->hdmi_sink ? "no" : "yes");
-#endif
-
 			hdmi_edid_extract_latency_fields(edid_buf+0x80);
 			hdmi_edid_extract_speaker_allocation_data(
 				edid_buf+0x80);
@@ -1967,63 +1932,6 @@ error:
 	return status;
 }
 EXPORT_SYMBOL(hdmi_common_read_edid);
-
-#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2)
-/*This funcion re-order given videomode*/
-static int get_mhl_v1_supported_video_modes(int mode)
-{
-	switch (mode) {
-	case HDMI_VFRMT_1440x480i60_4_3:
-	case HDMI_VFRMT_1440x480i60_16_9:
-			return 1; /* 480i */
-	case HDMI_VFRMT_1440x576i50_4_3:
-	case HDMI_VFRMT_1440x576i50_16_9:
-			return 2; /* 576i */
-	case HDMI_VFRMT_640x480p60_4_3:
-			return 3; /* 480p x640 */
-	case HDMI_VFRMT_720x480p60_4_3:
-	case HDMI_VFRMT_720x480p60_16_9:
-			return 4; /* 480p x720 */
-	case HDMI_VFRMT_720x576p50_4_3:
-	case HDMI_VFRMT_720x576p50_16_9:
-			return 5; /* 576p */
-	case HDMI_VFRMT_1920x1080i60_16_9:
-			return 6; /* 1080i*/
-	case HDMI_VFRMT_1280x720p50_16_9:
-			return 7; /* 720p*/
-	case HDMI_VFRMT_1280x720p60_16_9:
-			return 8;
-	case HDMI_VFRMT_1920x1080p24_16_9:
-			return 9;
-	case HDMI_VFRMT_1920x1080p25_16_9:
-			return 10;
-	case HDMI_VFRMT_1920x1080p30_16_9:
-	case HDMI_VFRMT_1920x1080p50_16_9:
-	case HDMI_VFRMT_1920x1080p60_16_9:
-			return 11;
-	default:
-			/*for all unsupported videomodes by mhl_ic_sii9244*/
-			DEV_DBG("Resolution %d: %s not supported by mhl_ic_sii9244\n", \
-						mode, msm_hdmi_mode_2string(mode));
-			return ERR_CODE;
-	}
-}
-int get_best_display_Mode(void)
-{
-	int order = 0, bestOrder = 0, bestMode = HDMI_VFRMT_640x480p60_4_3, i;
-	if (external_common_state->disp_mode_list.num_of_elements) {
-		uint32 *video_mode = external_common_state->disp_mode_list.disp_mode_list;
-		for (i = 0; i < external_common_state->disp_mode_list.num_of_elements; i++) {
-			order = get_mhl_v1_supported_video_modes(video_mode[i]);
-			if (order > bestOrder) {
-				bestOrder = order;
-				bestMode = video_mode[i];
-			}
-		}
-	}
-	return bestMode;
-}
-#endif
 
 bool hdmi_common_get_video_format_from_drv_data(struct msm_fb_data_type *mfd)
 {

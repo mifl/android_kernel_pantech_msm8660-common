@@ -33,9 +33,6 @@ uint32 hdmi_inp(uint32 offset);
 #define HDMI_INP(offset)		inpdw(MSM_HDMI_BASE+(offset))
 #endif
 
-// a software workaround for a potential HW problem with HDMI which exists on V1 and V2 8660 units
-#define WORKAROUND_FOR_HDMI_CURRENT_LEAKAGE_FIX
-
 
 /*
  * Ref. HDMI 1.4a
@@ -109,13 +106,6 @@ struct hdmi_msm_state_type {
 	void __iomem *hdmi_io;
 
 	struct external_common_state_type common;
-	boolean hpd_on_offline;
-#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2) || \
-		defined(CONFIG_VIDEO_MHL_TAB_V2)
-	boolean mhl_hpd_state;
-#endif
-	boolean	boot_completion;
-
 	struct completion hpd_event_processed;
 };
 
