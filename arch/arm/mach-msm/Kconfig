@@ -606,6 +606,14 @@ config MACH_MSM8X60_DRAGON
 	help
 	  Support for the Qualcomm MSM8x60 Dragon board.
 
+config MACH_MSM8X60_PRESTO
+    depends on ARCH_MSM8X60
+    default n
+    bool "MSM8X60 PRESTO"
+    select CUST_SKY_H
+    help
+      Support for the Pantech MSM8x60 PRESTO project board.
+
 config MACH_MSM8960_SIM
 	depends on ARCH_MSM8960
 	bool "MSM8960 Simulator"
@@ -738,6 +746,13 @@ config MACH_FSM9XXX_SURF
 	  FFA board.
 
 endmenu
+
+config CUST_SKY_H
+    bool
+
+if CUST_SKY_H
+source "arch/arm/mach-msm/cust_sky/Kconfig"
+endif
 
 config MSM_STACKED_MEMORY
 	bool "Stacked Memory"
@@ -1116,7 +1131,7 @@ config MSM_SMD_DEBUG
 	  between the ARM9 and ARM11
 
 config MSM_SDIO_AL
-	depends on ((ARCH_MSM7X30 || MACH_MSM8X60_FUSN_FFA || MACH_TYPE_MSM8X60_FUSION) && HAS_WAKELOCK)
+	depends on ((ARCH_MSM7X30 || MACH_MSM8X60_FUSN_FFA || MACH_TYPE_MSM8X60_FUSION || MACH_MSM8X60_PRESTO ) && HAS_WAKELOCK)
 	default y
 	tristate "SDIO-Abstraction-Layer"
 	help

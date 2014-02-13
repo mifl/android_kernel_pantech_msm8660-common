@@ -339,7 +339,7 @@ static inline unsigned int cpufreq_quick_get(unsigned int cpu)
 }
 #endif
 
-#ifdef CONFIG_ARCH_MSM8X60
+#ifdef CONFIG_MACH_MSM8X60_PRESTO
 #define MAX_FREQ_LIMIT		1512000
 #define MIN_FREQ_LIMIT		384000
 #define MAX_TOUCH_LIMIT		486000

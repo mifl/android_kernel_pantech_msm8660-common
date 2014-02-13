@@ -1311,7 +1311,12 @@ static int mmc_blk_alloc_parts(struct mmc_card *card, struct mmc_blk_data *md)
 	if (!mmc_card_mmc(card))
 		return 0;
 
+//This is temporary patch. To change Direct Volume state from Pending to Idle
+#if 0 //(mmc)march 2012.4.27
+    if (card->ext_csd.boot_size && mmc_boot_partition_access(card->host)) {
+#else
 	if (card->ext_csd.boot_size) {
+#endif
 		ret = mmc_blk_alloc_part(card, md, EXT_CSD_PART_CONFIG_ACC_BOOT0,
 					 card->ext_csd.boot_size >> 9,
 					 true,
