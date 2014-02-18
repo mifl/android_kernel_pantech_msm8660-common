@@ -61,8 +61,6 @@ obj-$(CONFIG_MWIFIEX)	+= mwifiex/
 
 ifeq ($(CONFIG_CUST_SKY_H),y)
 obj-$(CONFIG_BCM4329)	+= bcm4329_presto/
-else
-obj-$(CONFIG_BCM4329)	+= bcm4329/
 endif
 obj-$(CONFIG_BCM4334)   += bcmdhd/
 obj-$(CONFIG_BCM4330)   += bcmdhd/
