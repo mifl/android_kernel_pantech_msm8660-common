@@ -2045,33 +2045,6 @@ const struct msm_hdmi_mode_timing_info *hdmi_mhl_get_supported_mode(
 }
 EXPORT_SYMBOL(hdmi_mhl_get_supported_mode);
 
-#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2)
-/*mentain vfbi timing correction for bestresolution...*/
-static struct fb_var_screeninfo current_vscrinfo;
-struct fb_var_screeninfo *hdmi_fb_vscrinfo(void)
-{
-	const struct msm_hdmi_mode_timing_info *timing =
-		hdmi_common_get_supported_mode(
-		external_common_state->video_resolution);
-		if (timing == NULL || !timing->supported)
-		return NULL;
-		DEV_DBG("%d : %s\n", external_common_state->video_resolution,
-		msm_hdmi_mode_2string(external_common_state->video_resolution));
-		current_vscrinfo.reserved[3] = timing->video_format;
-		current_vscrinfo.xres = timing->active_h;
-		current_vscrinfo.yres = timing->active_v;
-		current_vscrinfo.right_margin = timing->front_porch_h;
-		current_vscrinfo.hsync_len = timing->pulse_width_h;
-		current_vscrinfo.left_margin = timing->back_porch_h;
-		current_vscrinfo.lower_margin = timing->front_porch_v;
-		current_vscrinfo.vsync_len = timing->pulse_width_v;
-		current_vscrinfo.upper_margin = timing->back_porch_v;
-		current_vscrinfo.pixclock = timing->pixel_freq*1000;
-		return &current_vscrinfo;
-}
-EXPORT_SYMBOL(hdmi_fb_vscrinfo);
-#endif
-
 void hdmi_common_init_panel_info(struct msm_panel_info *pinfo)
 {
 	const struct msm_hdmi_mode_timing_info *timing =
