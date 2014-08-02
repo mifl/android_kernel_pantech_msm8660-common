@@ -222,6 +222,10 @@ config AVOID_COMPILE_ERRORS
 	bool "Patch to avoid kernel compile errors"
 	default y
 
+config PRESTO_CRT_OFF_ANIMATION
+       bool "Fix to crt off animation"
+       default y
+
 config BUG_FIX_LCD_YUV_REVERSE
 	bool
 
