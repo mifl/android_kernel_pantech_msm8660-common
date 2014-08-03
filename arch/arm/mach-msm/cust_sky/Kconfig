@@ -223,8 +223,8 @@ config AVOID_COMPILE_ERRORS
 	default y
 
 config PRESTO_CRT_OFF_ANIMATION
-       bool "Fix to crt off animation"
-       default y
+	bool "Fix to crt off animation"
+	default n
 
 config BUG_FIX_LCD_YUV_REVERSE
 	bool
