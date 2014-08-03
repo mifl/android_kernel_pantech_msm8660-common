@@ -220,7 +220,7 @@ config PANTECH_KERNEL_FS_FIX
 
 config AVOID_COMPILE_ERRORS
 	bool "Patch to avoid kernel compile errors"
-	default y
+	default n
 
 config PRESTO_CRT_OFF_ANIMATION
 	bool "Fix to crt off animation"
