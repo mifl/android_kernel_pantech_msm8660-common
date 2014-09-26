@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2011, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2012, 2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -78,6 +78,7 @@ struct rmnet_private {
 #endif
 	struct sk_buff *skb;
 	spinlock_t lock;
+	spinlock_t tx_queue_lock;
 	struct tasklet_struct tsklt;
 	u32 operation_mode; /* IOCTL specified mode (protocol, QoS header) */
 	uint8_t device_up;
@@ -108,7 +109,8 @@ static ssize_t timeout_suspend_show(struct device *d,
 				    struct device_attribute *attr,
 				    char *buf)
 {
-	return sprintf(buf, "%lu\n", (unsigned long) timeout_suspend_us);
+	return snprintf(buf, PAGE_SIZE, "%lu\n",
+			(unsigned long) timeout_suspend_us);
 }
 
 static DEVICE_ATTR(timeout_suspend, 0664, timeout_suspend_show,
@@ -167,7 +169,7 @@ static ssize_t wakeups_xmit_show(struct device *d,
 				 char *buf)
 {
 	struct rmnet_private *p = netdev_priv(to_net_dev(d));
-	return sprintf(buf, "%lu\n", p->wakeups_xmit);
+	return snprintf(buf, PAGE_SIZE, "%lu\n", p->wakeups_xmit);
 }
 
 DEVICE_ATTR(wakeups_xmit, 0444, wakeups_xmit_show, NULL);
@@ -176,7 +178,7 @@ static ssize_t wakeups_rcv_show(struct device *d, struct device_attribute *attr,
 				char *buf)
 {
 	struct rmnet_private *p = netdev_priv(to_net_dev(d));
-	return sprintf(buf, "%lu\n", p->wakeups_rcv);
+	return snprintf(buf, PAGE_SIZE, "%lu\n", p->wakeups_rcv);
 }
 
 DEVICE_ATTR(wakeups_rcv, 0444, wakeups_rcv_show, NULL);
@@ -200,7 +202,7 @@ static ssize_t timeout_show(struct device *d, struct device_attribute *attr,
 {
 	struct rmnet_private *p = netdev_priv(to_net_dev(d));
 	p = netdev_priv(to_net_dev(d));
-	return sprintf(buf, "%lu\n", timeout_us);
+	return snprintf(buf, PAGE_SIZE, "%lu\n", timeout_us);
 }
 
 DEVICE_ATTR(timeout, 0664, timeout_show, timeout_store);
@@ -361,6 +363,7 @@ xmit_out:
 static void sdio_write_done(void *dev, struct sk_buff *skb)
 {
 	struct rmnet_private *p = netdev_priv(dev);
+	unsigned long flags;
 
 	if (skb)
 		dev_kfree_skb_any(skb);
@@ -368,12 +371,14 @@ static void sdio_write_done(void *dev, struct sk_buff *skb)
 	if (!p->in_reset) {
 		DBG1("%s: write complete skb=%p\n",	__func__, skb);
 
+		spin_lock_irqsave(&p->tx_queue_lock, flags);
 		if (netif_queue_stopped(dev) &&
 				msm_sdio_dmux_is_ch_low(p->ch_id)) {
 			DBG0("%s: Low WM hit, waking queue=%p\n",
 					__func__, skb);
 			netif_wake_queue(dev);
 		}
+		spin_unlock_irqrestore(&p->tx_queue_lock, flags);
 	} else {
 		DBG1("%s: write in reset skb=%p\n",	__func__, skb);
 	}
@@ -454,6 +459,7 @@ static int rmnet_change_mtu(struct net_device *dev, int new_mtu)
 static int rmnet_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	struct rmnet_private *p = netdev_priv(dev);
+	unsigned long flags;
 
 	if (netif_queue_stopped(dev)) {
 		pr_err("[%s]fatal: rmnet_xmit called when "
@@ -463,10 +469,12 @@ static int rmnet_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	_rmnet_xmit(skb, dev);
 
+	spin_lock_irqsave(&p->tx_queue_lock, flags);
 	if (msm_sdio_dmux_is_ch_full(p->ch_id)) {
 		netif_stop_queue(dev);
 		DBG0("%s: High WM hit, stopping queue=%p\n",	__func__, skb);
 	}
+	spin_unlock_irqrestore(&p->tx_queue_lock, flags);
 
 	return 0;
 }
@@ -491,7 +499,7 @@ static const struct net_device_ops rmnet_ops_ether = {
 	.ndo_stop = rmnet_stop,
 	.ndo_start_xmit = rmnet_xmit,
 	.ndo_get_stats = rmnet_get_stats,
-	.ndo_set_multicast_list = rmnet_set_multicast_list,
+	.ndo_set_rx_mode = rmnet_set_multicast_list,
 	.ndo_tx_timeout = rmnet_tx_timeout,
 	.ndo_do_ioctl = rmnet_ioctl,
 	.ndo_change_mtu = rmnet_change_mtu,
@@ -504,7 +512,7 @@ static const struct net_device_ops rmnet_ops_ip = {
 	.ndo_stop = rmnet_stop,
 	.ndo_start_xmit = rmnet_xmit,
 	.ndo_get_stats = rmnet_get_stats,
-	.ndo_set_multicast_list = rmnet_set_multicast_list,
+	.ndo_set_rx_mode = rmnet_set_multicast_list,
 	.ndo_tx_timeout = rmnet_tx_timeout,
 	.ndo_do_ioctl = rmnet_ioctl,
 	.ndo_change_mtu = rmnet_change_mtu,
@@ -667,6 +675,7 @@ static int __init rmnet_init(void)
 		p->operation_mode = RMNET_MODE_LLP_ETH;
 		p->ch_id = n;
 		spin_lock_init(&p->lock);
+		spin_lock_init(&p->tx_queue_lock);
 #ifdef CONFIG_MSM_RMNET_DEBUG
 		p->timeout_us = timeout_us;
 		p->wakeups_xmit = p->wakeups_rcv = 0;
