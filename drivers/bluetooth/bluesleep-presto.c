@@ -44,6 +44,9 @@
 #include <linux/param.h>
 #include <linux/bitops.h>
 #include <linux/termios.h>
+#ifdef CONFIG_PANTECH_PRESTO_BLUESLEEP
+#include <linux/wakelock.h>
+#endif
 #include <mach/gpio.h>
 #include <mach/msm_serial_hs.h>
 
@@ -67,6 +70,9 @@ struct bluesleep_info {
 	unsigned ext_wake;
 	unsigned host_wake_irq;
 	struct uart_port *uport;
+#ifdef CONFIG_PANTECH_PRESTO_BLUESLEEP
+    struct wake_lock wake_lock;
+#endif
 };
 
 /* work function */
@@ -157,14 +163,36 @@ static inline int bluesleep_can_sleep(void)
 void bluesleep_sleep_wakeup(void)
 {
 	if (test_bit(BT_ASLEEP, &flags)) {
+#ifdef CONFIG_PANTECH_PRESTO_BLUESLEEP
+        printk(KERN_INFO"%s : waking up... \n",__func__);
+#else /* QCOM Original */
 		BT_DBG("waking up...");
+#endif
+
+#ifdef CONFIG_PANTECH_PRESTO_BLUESLEEP
+        wake_lock(&bsi->wake_lock);
+#endif
 		/* Start the timer */
 		mod_timer(&tx_timer, jiffies + (TX_TIMER_INTERVAL * HZ));
+#ifndef CONFIG_PANTECH_PRESTO_BLUESLEEP
 		gpio_set_value(bsi->ext_wake, 0);
+#endif
 		clear_bit(BT_ASLEEP, &flags);
 		/*Activating UART */
 		hsuart_power(1);
 	}
+#ifdef CONFIG_PANTECH_PRESTO_BLUESLEEP
+    else {
+        //hyuki add 20120719
+        if (test_bit(BT_PROTO, &flags)) {
+            wake_lock(&bsi->wake_lock);
+            /* Just start the timer if not asleep */
+            mod_timer(&tx_timer, jiffies + (TX_TIMER_INTERVAL * HZ));
+        } else {
+            del_timer(&tx_timer);
+        }
+    }
+#endif
 }
 
 /**
@@ -176,15 +204,27 @@ static void bluesleep_sleep_work(struct work_struct *work)
 	if (bluesleep_can_sleep()) {
 		/* already asleep, this is an error case */
 		if (test_bit(BT_ASLEEP, &flags)) {
+#ifndef CONFIG_PANTECH_PRESTO_BLUESLEEP
 			BT_DBG("already asleep");
+#endif
 			return;
 		}
 
 		if (msm_hs_tx_empty(bsi->uport)) {
+#ifdef CONFIG_PANTECH_PRESTO_BLUESLEEP
+            printk(KERN_INFO"%s : going to sleep... \n",__func__);
+#else /* QCOM Original */
 			BT_DBG("going to sleep...");
+#endif
 			set_bit(BT_ASLEEP, &flags);
 			/*Deactivating UART */
 			hsuart_power(0);
+#ifdef CONFIG_PANTECH_PRESTO_BLUESLEEP
+            /* UART clk is not turned off immediately. Release
+             * wakelock after 500 ms.
+             */
+            wake_lock_timeout(&bsi->wake_lock, HZ / 2);
+#endif
 		} else {
 
 		  mod_timer(&tx_timer, jiffies + (TX_TIMER_INTERVAL * HZ));
@@ -202,14 +242,20 @@ static void bluesleep_sleep_work(struct work_struct *work)
  */
 static void bluesleep_hostwake_task(unsigned long data)
 {
+#ifndef CONFIG_PANTECH_PRESTO_BLUESLEEP
 	BT_DBG("hostwake line change");
+#endif
 
 	spin_lock(&rw_lock);
 
+#ifdef CONFIG_PANTECH_PRESTO_BLUESLEEP
+    bluesleep_sleep_wakeup();
+#else /* QCOM Original */
 	if (gpio_get_value(bsi->host_wake))
 		bluesleep_rx_busy();
 	else
 		bluesleep_rx_idle();
+#endif
 
 	spin_unlock(&rw_lock);
 }
@@ -230,7 +276,9 @@ static void bluesleep_outgoing_data(void)
 	/* if the tx side is sleeping... */
 	if (gpio_get_value(bsi->ext_wake)) {
 
+#ifndef CONFIG_PANTECH_PRESTO_BLUESLEEP
 		BT_DBG("tx was sleeping");
+#endif
 		bluesleep_sleep_wakeup();
 	}
 
@@ -289,16 +337,33 @@ static void bluesleep_tx_timer_expire(unsigned long data)
 
 	/* were we silent during the last timeout? */
 	if (!test_bit(BT_TXDATA, &flags)) {
+#ifndef CONFIG_PANTECH_PRESTO_BLUESLEEP
 		BT_DBG("Tx has been idle");
+#endif
+#ifndef CONFIG_PANTECH_PRESTO_BLUESLEEP
 		gpio_set_value(bsi->ext_wake, 1);
+#endif
 		bluesleep_tx_idle();
 	} else {
+#ifndef CONFIG_PANTECH_PRESTO_BLUESLEEP
 		BT_DBG("Tx data during last period");
+#endif
 		mod_timer(&tx_timer, jiffies + (TX_TIMER_INTERVAL*HZ));
+
+#ifdef CONFIG_PANTECH_PRESTO_BLUESLEEP
+        /* clear the incoming data flag only when there is no enqueued data on transport and can be asleep */
+        // 20101117 lhw_device for reset on repetitive BT ON/OFF
+        //if(msm_hs_tx_empty(bsi->uport)){
+        if((bsi->uport != NULL)&&(msm_hs_tx_empty(bsi->uport))){
+            clear_bit(BT_TXDATA, &flags);
+        }
+#endif
 	}
 
+#ifndef CONFIG_PANTECH_PRESTO_BLUESLEEP
 	/* clear the incoming data flag */
 	clear_bit(BT_TXDATA, &flags);
+#endif
 
 	spin_unlock_irqrestore(&rw_lock, irq_flags);
 }
@@ -311,8 +376,21 @@ static void bluesleep_tx_timer_expire(unsigned long data)
  */
 static irqreturn_t bluesleep_hostwake_isr(int irq, void *dev_id)
 {
+#ifdef CONFIG_PANTECH_PRESTO_BLUESLEEP
+    int ret=0;
+
+    wake_lock_timeout(&bsi->wake_lock, HZ / 2);
+
+    printk(KERN_INFO"%s: %d \n",__func__, gpio_get_value(bsi->host_wake));
+
+    /* schedule a tasklet to handle the change in the host wake line */
+    ret = gpio_get_value(bsi->host_wake);
+    if(!ret)
+        tasklet_schedule(&hostwake_task);
+#else /* QCOM Original */
 	/* schedule a tasklet to handle the change in the host wake line */
 	tasklet_schedule(&hostwake_task);
+#endif
 	return IRQ_HANDLED;
 }
 
@@ -346,9 +424,15 @@ static int bluesleep_start(void)
 
 	/* assert BT_WAKE */
 	gpio_set_value(bsi->ext_wake, 0);
+#ifdef CONFIG_PANTECH_PRESTO_BLUESLEEP
+    retval = request_irq(bsi->host_wake_irq, bluesleep_hostwake_isr,
+                IRQF_DISABLED | IRQF_TRIGGER_FALLING,
+                "bt_hostwake", NULL);
+#else /* QCOM Original */
 	retval = request_irq(bsi->host_wake_irq, bluesleep_hostwake_isr,
 				IRQF_DISABLED | IRQF_TRIGGER_FALLING,
 				"bluetooth hostwake", NULL);
+#endif
 	if (retval  < 0) {
 		BT_ERR("Couldn't acquire BT_HOST_WAKE IRQ");
 		goto fail;
@@ -362,6 +446,9 @@ static int bluesleep_start(void)
 	}
 
 	set_bit(BT_PROTO, &flags);
+#ifdef CONFIG_PANTECH_PRESTO_BLUESLEEP
+	wake_lock(&bsi->wake_lock);
+#endif
 	return 0;
 fail:
 	del_timer(&tx_timer);
@@ -400,6 +487,9 @@ static void bluesleep_stop(void)
 	if (disable_irq_wake(bsi->host_wake_irq))
 		BT_ERR("Couldn't disable hostwake IRQ wakeup mode\n");
 	free_irq(bsi->host_wake_irq, NULL);
+#ifdef CONFIG_PANTECH_PRESTO_BLUESLEEP
+    wake_lock_timeout(&bsi->wake_lock, HZ / 2);
+#endif
 }
 /**
  * Read the <code>BT_WAKE</code> GPIO pin value via the proc interface.
@@ -447,6 +537,14 @@ static int bluepower_write_proc_btwake(struct file *file, const char *buffer,
 	}
 
 	if (buf[0] == '0') {
+#ifdef CONFIG_PANTECH_PRESTO_BLUESLEEP
+        if (test_bit(BT_ASLEEP, &flags)) {
+            #ifdef DEBUG
+            BT_DBG("Wake-up UART first if asleep");
+            #endif
+            bluesleep_outgoing_data();
+        }
+#endif
 		gpio_set_value(bsi->ext_wake, 0);
 	} else if (buf[0] == '1') {
 		gpio_set_value(bsi->ext_wake, 1);
@@ -601,6 +699,10 @@ static int __init bluesleep_probe(struct platform_device *pdev)
 		goto free_bt_ext_wake;
 	}
 
+#ifdef CONFIG_PANTECH_PRESTO_BLUESLEEP
+    bsi->uport= msm_hs_get_bt_uport(0);
+    wake_lock_init(&bsi->wake_lock, WAKE_LOCK_SUSPEND, "bluesleep");
+#endif
 
 	return 0;
 
@@ -628,6 +730,9 @@ static int bluesleep_remove(struct platform_device *pdev)
 
 	gpio_free(bsi->host_wake);
 	gpio_free(bsi->ext_wake);
+#ifdef CONFIG_PANTECH_PRESTO_BLUESLEEP
+    wake_lock_destroy(&bsi->wake_lock);
+#endif
 	kfree(bsi);
 	return 0;
 }
