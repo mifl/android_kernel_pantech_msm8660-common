@@ -60,7 +60,6 @@ obj-$(CONFIG_IWM)	+= iwmc3200wifi/
 obj-$(CONFIG_MWIFIEX)	+= mwifiex/
 
 ifeq ($(CONFIG_CUST_SKY_H),y)
-obj-$(CONFIG_BCM4329)	+= bcm4329_presto/
 obj-$(CONFIG_BCMDHD)	+= bcmdhd_presto/
 endif
 obj-$(CONFIG_BCM4334)   += bcmdhd/
