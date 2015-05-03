@@ -122,8 +122,10 @@ static int charm_panic_prep(struct notifier_block *this,
 
 	CHARM_DBG("%s: setting AP2MDM_ERRFATAL high for a non graceful reset\n",
 			 __func__);
+#ifndef CONFIG_PANTECH
 	if (get_restart_level() == RESET_SOC)
 		pm8xxx_stay_on();
+#endif /* pz1945 */
 
 	charm_disable_irqs();
 	gpio_set_value(AP2MDM_ERRFATAL, 1);
@@ -244,8 +246,10 @@ static DECLARE_WORK(charm_status_work, charm_status_fn);
 static void charm_fatal_fn(struct work_struct *work)
 {
 	pr_info("Reseting the charm due to an errfatal\n");
+#ifndef CONFIG_PANTECH
 	if (get_restart_level() == RESET_SOC)
 		pm8xxx_stay_on();
+#endif /* P10911: block for mdm restart fail */
 	subsystem_restart("external_modem");
 }
 
@@ -340,6 +344,12 @@ static int __init charm_modem_probe(struct platform_device *pdev)
 	gpio_direction_output(AP2MDM_WAKEUP, 0);
 	gpio_direction_input(MDM2AP_STATUS);
 	gpio_direction_input(MDM2AP_ERRFATAL);
+#ifdef CONFIG_PANTECH
+	// MDM reset fail workaround (after mdm fatal)
+	gpio_direction_output(AP2MDM_PMIC_RESET_N, 1);
+	msleep(50);
+	gpio_direction_output(AP2MDM_PMIC_RESET_N, 0);
+#endif /* CONFIG_PANTECH */
 
 	power_on_charm = d->charm_modem_on;
 	power_down_charm = d->charm_modem_off;
@@ -430,6 +440,10 @@ static int __devexit charm_modem_remove(struct platform_device *pdev)
 	return misc_deregister(&charm_modem_misc);
 }
 
+#ifdef CONFIG_MACH_MSM8X60_PRESTO
+/* 20110907: choiseulkee add for fast reboot, PRESTO, AT&T requirment. */
+extern int is_forced_reset;
+#endif /* CONFIG_PANTECH */
 static void charm_modem_shutdown(struct platform_device *pdev)
 {
 	int i;
@@ -442,20 +456,47 @@ static void charm_modem_shutdown(struct platform_device *pdev)
 	gpio_set_value(AP2MDM_STATUS, 0);
 	gpio_set_value(AP2MDM_WAKEUP, 1);
 
+#ifdef CONFIG_MACH_MSM8X60_PRESTO
+	/* 20110907: choiseulkee add for fast reboot, PRESTO, AT&T requirment. */
+	if (is_forced_reset == 1) {
+		i = -1;
+	} else {
+		for (i = CHARM_MODEM_TIMEOUT; i > 0; i -= CHARM_MODEM_DELTA) {
+			pet_watchdog();
+			msleep(CHARM_MODEM_DELTA);
+			if (gpio_get_value(MDM2AP_STATUS) == 0)
+				break;
+		}
+	}
+#else /* CONFIG_MACH_MSM8X60_PRESTO */
 	for (i = CHARM_MODEM_TIMEOUT; i > 0; i -= CHARM_MODEM_DELTA) {
 		pet_watchdog();
 		msleep(CHARM_MODEM_DELTA);
 		if (gpio_get_value(MDM2AP_STATUS) == 0)
 			break;
 	}
+#endif /* CONFIG_MACH_MSM8X60_PRESTO */
 
-	if (i <= 0) {
+#ifdef CONFIG_PANTECH
+	/*
+	 * pz1945: If you connect the charger to boot, mdm boot fail intermittently,
+	 * then modified to always MDM PMIC RESET.
+	 */
+#else /* CONFIG_PANTECH */
+	if (i <= 0) 
+#endif /* CONFIG_PANTECH */
+	{
 		pr_err("%s: MDM2AP_STATUS never went low.\n",
 			 __func__);
 		gpio_direction_output(AP2MDM_PMIC_RESET_N, 1);
 		for (i = CHARM_HOLD_TIME; i > 0; i -= CHARM_MODEM_DELTA) {
 			pet_watchdog();
 			msleep(CHARM_MODEM_DELTA);
+#ifdef CONFIG_MACH_MSM8X60_PRESTO
+			/* 20110907: choiseulkee add for fast reboot, PRESTO, AT&T requirment. */
+			if (is_forced_reset == 1)
+				break;
+#endif /* CONFIG_MACH_MSM8X60_PRESTO */
 		}
 		gpio_direction_output(AP2MDM_PMIC_RESET_N, 0);
 	}
