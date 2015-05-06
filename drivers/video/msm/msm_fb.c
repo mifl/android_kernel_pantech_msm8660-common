@@ -421,6 +421,7 @@ static int msm_fb_probe(struct platform_device *pdev)
 		}
 		MSM_FB_DEBUG("msm_fb_probe:  phy_Addr = 0x%x virt = 0x%x\n",
 			     (int)fbram_phys, (int)fbram);
+
 #ifdef CONFIG_MACH_MSM8X60_PRESTO
 		gpio_set_value(157 , 0); //LCD_RESET pin
 #endif /* CONFIG_MACH_MSM8X60_PRESTO */
@@ -1793,54 +1794,26 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
 	    ("FrameBuffer[%d] %dx%d size=%d bytes is registered successfully!\n",
 	     mfd->index, fbi->var.xres, fbi->var.yres, fbi->fix.smem_len);
 
-#ifdef CONFIG_FB_MSM_HDMI_MSM_PANEL
-	if (mfd->index == 0) {
-#endif
 #if defined(CONFIG_F_SKYDISP_BOOT_LOGO_IN_KERNEL) && defined(CONFIG_FB_MSM_LOGO)
-#ifndef CONFIG_MACH_MSM8X60_PRESTO
-#if defined(CONFIG_SKY_CHARGING) || defined(CONFIG_SKY_SMB_CHARGER)
-		if (sky_charging_status()) {
-			ret = load_565rle_image(BATTERY_IMAGE_FILE, bf_supported);
-			offline_charging_status = 1;
-#if defined(CONFIG_MACH_MSM8X60_EF39S)
-			mfd->bl_level = 10;
-#endif /* CONFIG_MACH_MSM8X60_EF39S */
-		} else
-#endif /* CONFIG_SKY_CHARGING || CONFIG_SKY_SMB_CHARGER */
-#endif /* CONFIG_MACH_MSM8X60_PRESTO */
-#ifdef CONFIG_SKY_CHARGING			// kobj 110827
-			if (sky_charging_status())
-				gpio_set_132_trickle_leakeage();   //kobj 
+#ifdef CONFIG_SKY_CHARGING
+	// kobj 110827
+	if (sky_charging_status())
+		gpio_set_132_trickle_leakeage();
 #endif /* CONFIG_SKY_CHARGING */
 
 #ifdef CONFIG_SW_RESET
-#ifndef CONFIG_MACH_MSM8X60_PRESTO
-			if (msm_reset_reason()) {
-				if (msm_reset_get_bl() == 1)
-					ret = load_565rle_image(REBOOT_IMAGE_FILE, bf_supported);
-				else {
-#if defined(TARGET_BUILD_USER)
-					is_blind_reset = 1;
-#endif /* TARGET_BUILD_USER */
-					ret = 1;
-				}
-			} else
-#else /* CONFIG_MACH_MSM8X60_PRESTO */
-			msm_reset_reason();
-#endif /* CONFIG_MACH_MSM8X60_PRESTO */
+	msm_reset_reason();
+	ret = load_565rle_image(INIT_IMAGE_FILE, bf_supported);
+	msm_reset_reason_clear();
+#else /* CONFIG_SW_RESET */
+	ret = load_565rle_image(INIT_IMAGE_FILE, bf_supported);
 #endif /* CONFIG_SW_RESET */
 
-		ret = load_565rle_image(INIT_IMAGE_FILE, bf_supported);
-
-#ifdef CONFIG_SW_RESET
-		msm_reset_reason_clear();
-#endif /* CONFIG_SW_RESET */
-
-		if (!ret) {
-			if (msm_fb_blank_sub(FB_BLANK_UNBLANK, fbi, true)) {
-				printk(KERN_ERR "[LIVED] msm_fb_register: can't turn on display!\n");
-			}
+	if (!ret) {
+		if (msm_fb_blank_sub(FB_BLANK_UNBLANK, fbi, true)) {
+			printk(KERN_ERR "[LIVED] msm_fb_register: can't turn on display!\n");
 		}
+	}
 #else /* CONFIG_F_SKYDISP_BOOT_LOGO_IN_KERNEL && CONFIG_FB_MSM_LOGO */
 #ifdef CONFIG_FB_MSM_LOGO
 	/* Flip buffer */
@@ -1849,9 +1822,6 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
 #endif
 #endif /* CONFIG_F_SKYDISP_BOOT_LOGO_IN_KERNEL && CONFIG_FB_MSM_LOGO */
 	ret = 0;
-#ifdef CONFIG_FB_MSM_HDMI_MSM_PANEL
-	}
-#endif
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	if (hdmi_prim_display || mfd->panel_info.type != DTV_PANEL) {
